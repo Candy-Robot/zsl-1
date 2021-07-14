@@ -1,0 +1,7 @@
+.vscode/
+materials/
+models/
+venv/
+*.out
+*__pycache__/
+*.txt
