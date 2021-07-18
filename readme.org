@@ -1,0 +1,6 @@
+* TODOList
+** use wordnet/glove to generate class embedding.
+** only contains graph message.
+** combine graph with label message.
+** chose important edge.
+** irrelation & corelation connections.

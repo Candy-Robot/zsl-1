@@ -1,22 +1,6 @@
 from operator import index
 from torchvision import transforms
-from utils import (
-    AWA2_PATH,
-    CUDA,
-    JPEG_PATH,
-    TEST_CLASS_PATH,
-    TRAIN_CLASS_PATH,
-    find_best_pred_class,
-    get_all_classes,
-    get_predicate_binary_mat,
-    get_train_classes,
-    load_model,
-    mapping_class_to_index,
-    mapping_index_to_class,
-    train_transformer,
-    test_transformer,
-    build_model,
-)
+from utils import *
 from awa2_dataset import AnimalDataset
 from torch.utils.data import DataLoader
 from torch.optim import Adam

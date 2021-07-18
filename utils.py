@@ -33,6 +33,10 @@ test_transformer = transforms.Compose(
 )
 
 
+def to_categorical(y, num_classes):
+    return np.eye(num_classes, dtype="uint8")[y]
+
+
 def CUDA(tensor: torch.Tensor):
     """Move tensor to cuda if cuda is available."""
     return tensor.cuda() if torch.cuda.is_available() else tensor
