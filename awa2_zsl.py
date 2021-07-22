@@ -10,6 +10,45 @@ import torch
 import numpy as np
 
 
+def build_model(num_outputs):
+    """Build model which takes image as input, and label embedding as ouput."""
+    model = get_res50_model()
+    num_features = model.fc.in_features
+    model.fc = nn.Sequential(
+        nn.BatchNorm1d(num_features),
+        nn.ReLU(),
+        nn.Dropout(0.25),
+        nn.Linear(num_features, num_outputs),
+    )
+    return model
+
+
+def load_model(model_path, num_labels):
+    """Load model from model_path."""
+    model = CUDA(build_model(num_labels))
+    model.load_state_dict(torch.load(model_path))
+    return model
+
+
+def find_best_pred_class(pred_labels, predicate_binary_mat, all_classes, train_classes):
+    """Find best class for predicted labels by find minimal distance between predicted value
+    and the true value."""
+    predictions = []
+    for i in range(pred_labels.shape[0]):
+        curr_labels = pred_labels[i, :].cpu().detach().numpy()
+        best_dist = sys.maxsize
+        best_index = -1
+        for j in range(predicate_binary_mat.shape[0]):
+            class_labels = predicate_binary_mat[j, :]
+            # get euclidean distance
+            dist = get_euclidean_dist(curr_labels, class_labels)
+            if dist < best_dist and all_classes[j] not in train_classes:
+                best_index = j
+                best_dist = dist
+        predictions.append(all_classes[best_index])
+    return predictions
+
+
 def train(num_outputs, epochs, eval_interval, lr, batch_size, criterion):
     """Train awa2 model.
 
