@@ -5,3 +5,4 @@ venv/
 *.out
 *__pycache__/
 *.txt
+log/

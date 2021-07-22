@@ -5,6 +5,8 @@ import torch
 import sys
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 
 # path constants
 AWA2_PATH = "/home/fangyuan/Animals_with_Attributes2/"
@@ -152,3 +154,21 @@ def find_best_pred_class(pred_labels, predicate_binary_mat, all_classes, train_c
                 best_dist = dist
         predictions.append(all_classes[best_index])
     return predictions
+
+
+def plot_grad_flow(named_parameters):
+    ave_grads = []
+    layers = []
+    for n, p in named_parameters:
+        if (p.requires_grad) and ("bias" not in n):
+            layers.append(n)
+            ave_grads.append(p.grad.abs().mean())
+    plt.plot(ave_grads, alpha=0.3, color="b")
+    plt.hlines(0, 0, len(ave_grads) + 1, linewidth=1, color="k")
+    plt.xticks(range(0, len(ave_grads), 1), layers, rotation="vertical")
+    plt.xlim(xmin=0, xmax=len(ave_grads))
+    plt.xlabel("Layers")
+    plt.ylabel("average gradient")
+    plt.title("Gradient flow")
+    plt.grid(True)
+    plt.savefig("grad_flow.png")
