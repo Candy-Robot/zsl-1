@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 
 # path constants
-AWA2_PATH = "/home/fangyuan/Animals_with_Attributes2/"
+AWA2_PATH = "/home/tangyicheng/awa2/"
 PREDICATE_BINARY_MAT_PATH = "predicate-matrix-binary.txt"
 ALL_CLASS_PATH = "classes.txt"
 TRAIN_CLASS_PATH = "trainclasses.txt"

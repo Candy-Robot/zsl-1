@@ -59,8 +59,8 @@ class AnimalDataset(data.dataset.Dataset):
             im = im.convert("RGB")
         if self.transform:
             im = self.transform(im)
-        if im.shape != (3, 224, 224):
-            print(self.img_names[index])
+        # if im.shape != (3, 224, 224):
+        #     print(self.img_names[index])
 
         im_class = self.img_class[index]
         im_predicate = self.predicate_binary_mat[im_class, :]

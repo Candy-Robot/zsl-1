@@ -39,12 +39,14 @@ class AwA2GraphDataset(DGLDataset):
         node_features = torch.from_numpy(get_predicate_binary_mat())
         edge_features = None
         edges_src, edges_dst = build_edges_on_predicates_above_average()
+        g = dgl.graph((edges_src, edges_dst), num_nodes=nodes_data.shape[0])
+        reverse_g = dgl.add_reverse_edges(g)
 
-        self.graph = dgl.graph((edges_src, edges_dst), num_nodes=nodes_data.shape[0])
+        self.graph = reverse_g
         self.graph.ndata["feat"] = node_features
         self.graph.ndata["label"] = node_labels
         self.graph.edata["weight"] = torch.from_numpy(
-            np.array([1 for _ in range(len(edges_dst))])
+            np.array([1 for _ in range(len(edges_dst) * 2)])
         )
         self.graph.ndata["train_mask"] = torch.from_numpy(train_mask) > 0
         self.graph.ndata["test_mask"] = torch.from_numpy(test_mask) > 0
