@@ -1,7 +1,9 @@
 import dgl
+from networkx.algorithms.shortest_paths import weighted
 import numpy as np
 import torch
 from dgl.data import DGLDataset
+from torch import cuda
 
 from build_graph import build_edges_on_predicates_above_average
 from glove import GloVe
@@ -34,22 +36,28 @@ class AwA2GraphDataset(DGLDataset):
         #     np.array([x.replace("+", " ") for x in nodes_data])
         # )
         node_labels = torch.from_numpy(np.array([x for x in range(len(nodes_data))]))
+        node_labels = CUDA(node_labels)
         # generate from glove
         # node_features = np.stack([self.glove[x].to_numpy() for x in node_labels])
         node_features = torch.from_numpy(get_predicate_binary_mat())
+        node_features = CUDA(node_features)
         edge_features = None
         edges_src, edges_dst = build_edges_on_predicates_above_average()
         g = dgl.graph((edges_src, edges_dst), num_nodes=nodes_data.shape[0])
         reverse_g = dgl.add_reverse_edges(g)
+        reverse_g_cuda = reverse_g.to("cuda:0")
 
-        self.graph = reverse_g
+        weight = torch.from_numpy(np.array([1 for _ in range(len(edges_dst) * 2)]))
+        weight = CUDA(weight)
+        train_mask = CUDA(torch.from_numpy(train_mask) > 0)
+        test_mask = CUDA(torch.from_numpy(test_mask) > 0)
+
+        self.graph = reverse_g_cuda
         self.graph.ndata["feat"] = node_features
         self.graph.ndata["label"] = node_labels
-        self.graph.edata["weight"] = torch.from_numpy(
-            np.array([1 for _ in range(len(edges_dst) * 2)])
-        )
-        self.graph.ndata["train_mask"] = torch.from_numpy(train_mask) > 0
-        self.graph.ndata["test_mask"] = torch.from_numpy(test_mask) > 0
+        self.graph.edata["weight"] = weight
+        self.graph.ndata["train_mask"] = train_mask
+        self.graph.ndata["test_mask"] = test_mask
 
     def __getitem__(self, idx):
         return self.graph

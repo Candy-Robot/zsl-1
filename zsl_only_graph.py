@@ -52,11 +52,9 @@ def find_best_pred_class_index(label_embeddings, img_embedding, test_class_index
 class AwA2Conv(nn.Module):
     def __init__(self, num_feature, num_output):
         super(AwA2Conv, self).__init__()
-        self.conv1 = GraphConv(num_feature, 1024)
-        self.conv2 = GraphConv(1024, 512)
-        self.conv3 = GraphConv(512, 256)
-        self.conv4 = GraphConv(256, 128)
-        self.conv5 = GraphConv(128, num_output)
+        self.conv1 = GraphConv(num_feature, 512)
+        self.conv2 = GraphConv(512, 1024)
+        self.conv3 = GraphConv(1024, num_output)
 
     def forward(self, g, x):
         h = self.conv1(g, x)
@@ -64,10 +62,6 @@ class AwA2Conv(nn.Module):
         h = self.conv2(g, h)
         h = F.leaky_relu(h)
         h = self.conv3(g, h)
-        h = F.leaky_relu(h)
-        h = self.conv4(g, h)
-        h = F.leaky_relu(h)
-        h = self.conv5(g, h)
         g.ndata["h"] = h
         return h
         # return dgl.mean_nodes(g, "h")
@@ -93,9 +87,11 @@ def train(lr, batch_size, epochs):
     dim_res50_feat = 2048
     dim_label = 50
     gcn_model = AwA2Conv(dim_label_feat, dim_res50_feat)
+    gcn_model = CUDA(gcn_model)
     # res_model = build_model(dim_res50_feat, dim_label)
     res50 = get_res50_model()
     res_model = nn.Sequential(*list(res50.children())[:-1])
+    res_model = CUDA(res_model)
 
     train_dataset = AnimalDataset(TRAIN_CLASS_PATH, transform=train_transformer)
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size)
@@ -109,6 +105,8 @@ def train(lr, batch_size, epochs):
         for i, (imgs, img_predicates, img_names, img_classes) in enumerate(
             train_dataloader
         ):
+            imgs = CUDA(imgs)
+            img_classes = CUDA(img_classes)
             if imgs.shape[0] < 2:
                 break
             # take img_predicate as embedding of the labels
@@ -156,6 +154,7 @@ def test(output_filename):
     dim_res50_feat = 2048
     dim_label = 50
     gcn_model = AwA2Conv(dim_label_feat, dim_res50_feat)
+    gcn_model = CUDA(gcn_model)
     # load pretrained model
     gcn_model.load_state_dict(torch.load("models/awa2-gcn-model.bin"))
 
