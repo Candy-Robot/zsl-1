@@ -1,5 +1,4 @@
 .vscode/
-materials/
 models/
 venv/
 *.out

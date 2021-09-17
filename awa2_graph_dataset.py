@@ -45,14 +45,15 @@ class AwA2GraphDataset(DGLDataset):
         edges_src, edges_dst = build_edges_on_predicates_above_average()
         g = dgl.graph((edges_src, edges_dst), num_nodes=nodes_data.shape[0])
         reverse_g = dgl.add_reverse_edges(g)
-        reverse_g_cuda = reverse_g.to("cuda:0")
+        # reverse_g_cuda = reverse_g.to("cuda:0")
 
         weight = torch.from_numpy(np.array([1 for _ in range(len(edges_dst) * 2)]))
         weight = CUDA(weight)
         train_mask = CUDA(torch.from_numpy(train_mask) > 0)
         test_mask = CUDA(torch.from_numpy(test_mask) > 0)
 
-        self.graph = reverse_g_cuda
+        # self.graph = reverse_g_cuda
+        self.graph = reverse_g
         self.graph.ndata["feat"] = node_features
         self.graph.ndata["label"] = node_labels
         self.graph.edata["weight"] = weight
