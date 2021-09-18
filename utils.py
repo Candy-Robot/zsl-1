@@ -166,3 +166,21 @@ def transfor_matrix_binary():
                 break 
         
     return transfor_binary_matrix, transfor_all_classes
+
+
+def test_index_40():
+    class_to_old_index = mapping_class_to_index()
+    i = 40
+    _, transfor_all_classes = transfor_matrix_binary()
+    class_to_transfor_index = {}
+    for i in range(50):
+        class_to_transfor_index[transfor_all_classes[i]] = i
+    transform_test_index = {}
+    with open(AWA2_PATH + TEST_CLASS_PATH) as f:
+        for line in f:
+            class_name = line.strip()
+            class_old_index = class_to_old_index[class_name]
+            class_transfor_index = class_to_transfor_index[class_name]
+            transform_test_index[class_old_index] = class_transfor_index
+    
+    return transform_test_index

@@ -1,5 +1,5 @@
 import sys
-
+import json
 from awa2_dataset import AnimalDataset
 from awa2_graph_dataset import AwA2GraphDataset
 from networkx.drawing.nx_pylab import draw
@@ -67,15 +67,15 @@ class AwA2GraphDataset(DGLDataset):
         edges_src, edges_dst = build_transform_edges()
         g = dgl.graph((edges_src, edges_dst), num_nodes=nodes_data.shape[0])
         reverse_g = dgl.add_reverse_edges(g)
-        # reverse_g_cuda = reverse_g.to("cuda:0")
+        reverse_g_cuda = reverse_g.to("cuda:0")
 
         weight = torch.from_numpy(np.array([1 for _ in range(len(edges_dst) * 2)]))
         weight = CUDA(weight)
         train_mask = CUDA(torch.from_numpy(train_mask) > 0)
         test_mask = CUDA(torch.from_numpy(test_mask) > 0)
 
-        # self.graph = reverse_g_cuda
-        self.graph = reverse_g
+        self.graph = reverse_g_cuda
+        # self.graph = reverse_g
         self.graph.ndata["feat"] = node_features
         self.graph.ndata["label"] = node_labels
         self.graph.edata["weight"] = weight
@@ -120,13 +120,19 @@ def train(max_epochs):
     dataset = AwA2GraphDataset()
     g = dataset[0]
 
+    fcfile = json.load(open('./materials/fc-weights.json', 'r'))
+    fc_vectors = [x[1] for x in fcfile]
+    fc_vectors = torch.tensor(fc_vectors)
+    fc_vectors = F.normalize(fc_vectors)
+    fc_vectors = CUDA(fc_vectors)
+
     dim_label_feat = g.ndata["feat"].shape[1]
     dim_res50fc_feat = 2049
     dim_label = 50
     gcn_model = AwA2Conv(dim_label_feat, dim_res50fc_feat)
     gcn_model = CUDA(gcn_model)
     n_train = 40
-    tlist = list(range(len(n_train)))
+    tlist = list(range(n_train))
     random.shuffle(tlist)
 
     optimizer = torch.optim.Adam(gcn_model.parameters(), lr=0.001, weight_decay=0.0005)
@@ -154,24 +160,38 @@ def train(max_epochs):
             )
 
         if epoch % 5 == 0:
-            writer.add_scalar("Loss", train_loss.item(), epoch)
+            writer.add_scalar("Loss", train_loss, epoch)
             sys.stdout.flush()
 
     # save model
     torch.save(gcn_model.state_dict(), "models/{}".format("fc_gcn_model.bin"))
 
+def find_best_pred_class_index(gcn_output, imgs_feature, test_class_indexes):
+    best_dist = sys.maxsize
+    best_index = -1
+    for i in range(len(gcn_output)):
+        if i not in test_class_indexes:
+            continue
+        curr_label_embedding = gcn_output[i, :].cpu().detach().numpy()
+        dist = get_euclidean_dist(
+            curr_label_embedding, imgs_feature.cpu().detach().numpy()
+        )
+        if dist < best_dist:
+            best_index = i
+            best_dist = dist
+    return best_index
 
 def test(output_filename):
     dataset = AwA2GraphDataset()
     g = dataset[0]
 
     dim_label_feat = g.ndata["feat"].shape[1]
-    dim_res50_feat = 2048
+    dim_res50fc_feat = 2049
     dim_label = 50
-    gcn_model = AwA2Conv(dim_label_feat, dim_res50_feat)
+    gcn_model = AwA2Conv(dim_label_feat, dim_res50fc_feat)
     gcn_model = CUDA(gcn_model)
     # load pretrained model
-    gcn_model.load_state_dict(torch.load("models/awa2-gcn-model.bin"))
+    gcn_model.load_state_dict(torch.load("models/fc_gcn_model.bin"))
 
     res50 = get_res50_model()
     res_model = nn.Sequential(*list(res50.children())[:-1])
@@ -189,27 +209,33 @@ def test(output_filename):
     total_cases = len(test_dataset)
 
     test_classes = get_test_classes()
-    class_to_index = mapping_class_to_index()
+    _, transfor_all_classes= transfor_matrix_binary()
+    class_to_index = {}
+    for i in range(50):
+        class_to_index[transfor_all_classes[i]] = i
+    # class_to_index = mapping_class_to_index()
     test_class_indexes = []
     for tc in test_classes:
         test_class_indexes.append(class_to_index[tc])
 
+    transform_test_index = test_index_40()
+
     for i, (imgs, img_predicates, img_names, img_classes) in enumerate(test_dataloader):
         output_img_names.extend(img_names)
-        # take img_predicate as embedding of the labels
-        # or we can also use glove embedding of labels
-        # set resnet50 fc weights to gcn outputs
-        # train_outputs = gcn_outputs[g.ndata["train_mask"]]
-        # res_model._modules["fc"].weight.data = gcn_outputs
 
-        # true_labels = F.one_hot(img_classes, num_classes=dim_label)
-        imgs_feature = res_model(imgs).squeeze()
+        img_transform_class = transform_test_index[img_classes.item()]
+    
+        feat = res_model(imgs).squeeze()
+        feat = CUDA(feat)
+        imgs_feature = torch.cat([feat, torch.ones(1).cuda()], dim=0)
+        
         pred_class = find_best_pred_class_index(
             gcn_outputs, imgs_feature, test_class_indexes
         )
-        pred_img_names.append(mapping_index_to_class()[pred_class])
+        pred_img_names.append(transfor_all_classes[pred_class])
 
-        if pred_class == img_classes.item():
+
+        if pred_class == img_transform_class:
             success_cases += 1
 
     with open(output_filename, "w") as f:
@@ -222,5 +248,5 @@ def test(output_filename):
 
 
 if __name__ == "__main__":
-    train(lr=0.001, batch_size=24, epochs=300)
-    # test(output_filename="zsl-graph-test.txt")
+    # train(max_epochs=3000)
+    test(output_filename="zsl-res50fc-test.txt")
