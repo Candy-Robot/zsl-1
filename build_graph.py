@@ -1,3 +1,4 @@
+from os import name
 import dgl
 import networkx as nx
 import torch
@@ -65,6 +66,11 @@ def draw_graph(graph):
     pos = nx.kamada_kawai_layout(nx_G)
     nx.draw(nx_G, pos, with_labels=True, node_color=[[0.7, 0.7, 0.7]])
 
+def draw_graph_node(graph):
+    """Draw graph single node"""
+    nx_G = graph.to_networkx().to_undirected()
+    nx_G
+    
 
 def build_transform_edges():
     transfor_binary_matrix, transfor_all_classes = transfor_matrix_binary()
@@ -88,3 +94,93 @@ def build_transform_edges():
     src_ids = torch.tensor([x[0] for x in edges])
     dst_ids = torch.tensor([x[1] for x in edges])
     return src_ids, dst_ids
+
+
+def build_dense_edges_on_predicates_less():
+    transfor_binary_matrix, transfor_all_classes = transfor_matrix_binary()
+    avg_same_predicate = 10
+    predicates_dim = 85
+    class_dim = 50
+    predicate_matrix_binary = transfor_binary_matrix
+    edges = []
+
+    for i in range(class_dim):
+        for j in range(i, class_dim):
+            num_same_predicate = 0
+            for k in range(predicates_dim):
+                if predicate_matrix_binary[i, k] == predicate_matrix_binary[j, k] == 1:
+                    num_same_predicate += 1
+            if num_same_predicate > avg_same_predicate:
+                edges.append((i, j))
+
+    # avg_same_predicate = num_same_predicate / (class_dim * (class_dim - 1) / 2)
+    src_ids = torch.tensor([x[0] for x in edges])
+    dst_ids = torch.tensor([x[1] for x in edges])
+    return src_ids, dst_ids
+
+def build_edges_without_unseen_classes_edges():
+    transfor_binary_matrix, transfor_all_classes = transfor_matrix_binary()
+    avg_same_predicate = 17.5
+    predicates_dim = 85
+    class_dim = 50
+    predicate_matrix_binary = transfor_binary_matrix
+    
+    test_classes = get_test_classes()
+    class_to_index = mapping_class_to_index()
+    test_index = []
+    for i in range(len(test_classes)):
+        test_index.append(class_to_index[test_classes[i]])
+    edges = []
+
+    for i in range(class_dim):
+        for j in range(i, class_dim):
+            num_same_predicate = 0
+            for k in range(predicates_dim):
+                if predicate_matrix_binary[i, k] == predicate_matrix_binary[j, k] == 1:
+                    num_same_predicate += 1
+            if num_same_predicate > avg_same_predicate:
+                if i not in test_index and j not in test_index:
+                    edges.append((i, j))    
+
+    # avg_same_predicate = num_same_predicate / (class_dim * (class_dim - 1) / 2)
+    src_ids = torch.tensor([x[0] for x in edges])
+    dst_ids = torch.tensor([x[1] for x in edges])
+    return src_ids, dst_ids
+
+def build_all_edges_without_unseen_edges():
+    transfor_binary_matrix, transfor_all_classes = transfor_matrix_binary()
+    avg_same_predicate = 1
+    predicates_dim = 85
+    class_dim = 50
+    predicate_matrix_binary = transfor_binary_matrix
+    
+    test_classes = get_test_classes()
+    class_to_index = mapping_class_to_index()
+    test_index = []
+    for i in range(len(test_classes)):
+        test_index.append(class_to_index[test_classes[i]])
+    edges = []
+    success_case = 0
+
+    for i in range(class_dim):
+        for j in range(i, class_dim):
+            if i not in test_index and j not in test_index:
+                for k in range(predicates_dim): 
+                    if predicate_matrix_binary[i, k] == predicate_matrix_binary[j, k] == 1:
+                        edges.append((i, j))
+                        success_case += 1
+                        break
+
+                    
+
+
+
+    src_ids = torch.tensor([x[0] for x in edges])
+    dst_ids = torch.tensor([x[1] for x in edges])
+    return src_ids, dst_ids
+
+
+if __name__ == "__main__":
+    src_ids, dst_ids = build_all_edges_without_unseen_edges()
+    g = dgl.graph((src_ids, dst_ids))
+    draw_graph(g)
