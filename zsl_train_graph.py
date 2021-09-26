@@ -34,7 +34,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, dataloader
 from torch.utils.tensorboard import SummaryWriter
 import random
-from build_graph import build_transform_edges
+from build_graph import build_all_edges_without_unseen_edges, build_dense_edges_on_predicates_less, build_edges_without_unseen_classes_edges, build_transform_edges
 
 
 import networkx as nx
@@ -64,13 +64,21 @@ class AwA2GraphDataset(DGLDataset):
         node_features = torch.from_numpy(transfor_binary_matrix)
         node_features = CUDA(node_features)
         edge_features = None
-        edges_src, edges_dst = build_transform_edges()
+        # 求平均值构造图
+        # edges_src, edges_dst = build_transform_edges()
+        # # 构造稍微密集一点的图
+        # edges_src, edges_dst = build_dense_edges_on_predicates_less()
+        # 求平均值构造图 但是unseen类之间不连边
+        edges_src, edges_dst = build_edges_without_unseen_classes_edges()
+        # # 有相同属性就连接边，但是unseen类之间不连边
+        # edges_src, edges_dst = build_all_edges_without_unseen_edges()
         g = dgl.graph((edges_src, edges_dst), num_nodes=nodes_data.shape[0])
         reverse_g = dgl.add_reverse_edges(g)
+        reverse_g = dgl.add_self_loop(reverse_g)
         reverse_g_cuda = reverse_g.to("cuda:0")
 
-        weight = torch.from_numpy(np.array([1 for _ in range(len(edges_dst) * 2)]))
-        weight = CUDA(weight)
+        # weight = torch.from_numpy(np.array([1 for _ in range(len(edges_dst) * 2)]))
+        # weight = CUDA(weight)
         train_mask = CUDA(torch.from_numpy(train_mask) > 0)
         test_mask = CUDA(torch.from_numpy(test_mask) > 0)
 
@@ -78,7 +86,7 @@ class AwA2GraphDataset(DGLDataset):
         # self.graph = reverse_g
         self.graph.ndata["feat"] = node_features
         self.graph.ndata["label"] = node_labels
-        self.graph.edata["weight"] = weight
+        # self.graph.edata["weight"] = weight
         self.graph.ndata["train_mask"] = train_mask
         self.graph.ndata["test_mask"] = test_mask
 
@@ -98,6 +106,7 @@ class AwA2Conv(nn.Module):
         self.conv2 = GraphConv(512, 1024)
         self.conv3 = GraphConv(1024, num_output)
 
+
     def forward(self, g, x):
         h = self.conv1(g, x)
         h = F.leaky_relu(h)
@@ -115,8 +124,8 @@ def mask_l2_loss(a, b, mask):
     return l2_loss(a[mask], b[mask])
 
 
-def train(max_epochs):
-    writer = SummaryWriter(log_dir="./log/zsl_graph/")
+def train(max_epochs,log_file, save_file):
+    writer = SummaryWriter(log_dir=log_file)
     dataset = AwA2GraphDataset()
     g = dataset[0]
 
@@ -164,7 +173,7 @@ def train(max_epochs):
             sys.stdout.flush()
 
     # save model
-    torch.save(gcn_model.state_dict(), "models/{}".format("fc_gcn_model.bin"))
+    torch.save(gcn_model.state_dict(), save_file)
 
 def find_best_pred_class_index(gcn_output, imgs_feature, test_class_indexes):
     best_dist = sys.maxsize
@@ -181,7 +190,7 @@ def find_best_pred_class_index(gcn_output, imgs_feature, test_class_indexes):
             best_dist = dist
     return best_index
 
-def test(output_filename):
+def test(load_file, output_filename):
     dataset = AwA2GraphDataset()
     g = dataset[0]
 
@@ -191,7 +200,7 @@ def test(output_filename):
     gcn_model = AwA2Conv(dim_label_feat, dim_res50fc_feat)
     gcn_model = CUDA(gcn_model)
     # load pretrained model
-    gcn_model.load_state_dict(torch.load("models/fc_gcn_model.bin"))
+    gcn_model.load_state_dict(torch.load(load_file))
 
     res50 = get_res50_model()
     res_model = nn.Sequential(*list(res50.children())[:-1])
@@ -248,5 +257,8 @@ def test(output_filename):
 
 
 if __name__ == "__main__":
-    # train(max_epochs=3000)
-    test(output_filename="zsl-res50fc-test.txt")
+    log_file = "./log/without_unseen_classes_edges_change/"
+    save_file = "models/{}".format("without_unseen_classes_edges_change.bin")
+    load_file = save_file
+    train(max_epochs=1000,log_file = log_file, save_file=save_file)
+    test(load_file = load_file, output_filename="without_unseen_classes_edges_change.txt")

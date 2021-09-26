@@ -120,7 +120,7 @@ def build_dense_edges_on_predicates_less():
 
 def build_edges_without_unseen_classes_edges():
     transfor_binary_matrix, transfor_all_classes = transfor_matrix_binary()
-    avg_same_predicate = 17.5
+    avg_same_predicate = 25
     predicates_dim = 85
     class_dim = 50
     predicate_matrix_binary = transfor_binary_matrix
@@ -131,7 +131,7 @@ def build_edges_without_unseen_classes_edges():
     for i in range(len(test_classes)):
         test_index.append(class_to_index[test_classes[i]])
     edges = []
-
+    not_edges = 0
     for i in range(class_dim):
         for j in range(i, class_dim):
             num_same_predicate = 0
@@ -139,8 +139,10 @@ def build_edges_without_unseen_classes_edges():
                 if predicate_matrix_binary[i, k] == predicate_matrix_binary[j, k] == 1:
                     num_same_predicate += 1
             if num_same_predicate > avg_same_predicate:
-                if i not in test_index and j not in test_index:
-                    edges.append((i, j))    
+                if i in test_index and j in test_index:
+                    not_edges += 1
+                else:
+                    edges.append((i,j))
 
     # avg_same_predicate = num_same_predicate / (class_dim * (class_dim - 1) / 2)
     src_ids = torch.tensor([x[0] for x in edges])
@@ -164,11 +166,12 @@ def build_all_edges_without_unseen_edges():
 
     for i in range(class_dim):
         for j in range(i, class_dim):
-            if i not in test_index and j not in test_index:
-                for k in range(predicates_dim): 
-                    if predicate_matrix_binary[i, k] == predicate_matrix_binary[j, k] == 1:
-                        edges.append((i, j))
-                        success_case += 1
+            for k in range(predicates_dim): 
+                if predicate_matrix_binary[i, k] == predicate_matrix_binary[j, k] == 1:
+                    if i in test_index and j in test_index:
+                        break
+                    else:
+                        edges.append((i,j))
                         break
 
                     
@@ -181,6 +184,6 @@ def build_all_edges_without_unseen_edges():
 
 
 if __name__ == "__main__":
-    src_ids, dst_ids = build_all_edges_without_unseen_edges()
+    src_ids, dst_ids = build_edges_without_unseen_classes_edges()
     g = dgl.graph((src_ids, dst_ids))
     draw_graph(g)
